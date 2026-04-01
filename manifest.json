@@ -1,0 +1,20 @@
+{
+  "name": "JBLAR Diretoria",
+  "short_name": "JBLAR",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#030812",
+  "theme_color": "#d4af37",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
