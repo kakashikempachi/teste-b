@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JBLAR - Dashboards</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #030812; display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100vw; overflow-x: hidden; }
+        .app-wrapper { width: 100%; max-width: 450px; min-height: 100vh; position: relative; overflow: hidden; }
+        @media (min-width: 480px) { .app-wrapper { min-height: 850px; height: 90vh; border-radius: 30px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9); margin: 20px 0; border: 1px solid #333; } }
+
+        /* --- TELAS --- */
+        #tela-menu {
+            height: 100%;
+            background-image: url('jblar%20diretoria.png'); 
+            background-size: cover; background-position: center top; background-repeat: no-repeat;
+            display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; padding-bottom: 8vh;
+            position: absolute; top: 0; left: 0; width: 100%;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .tela-relatorio {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at top, #1a2a47 0%, #050b14 100%); 
+            z-index: 10; overflow-y: auto; padding: 20px; padding-bottom: 40px;
+            transform: translateX(100%); opacity: 0; pointer-events: none;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .view-active { transform: translateX(0) !important; opacity: 1 !important; pointer-events: all !important; }
+        .view-hidden-left { transform: translateX(-100%) !important; opacity: 0 !important; pointer-events: none !important; }
+
+        /* HEADER E EXPORTAÇÃO */
+        .report-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; gap: 8px; }
+        .btn-voltar { background: rgba(5, 12, 25, 0.8); border: 1px solid rgba(212, 175, 55, 0.5); color: #d4af37; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .export-group { display: flex; gap: 4px; }
+        .btn-export { background: rgba(255,255,255,0.05); border: 1px solid rgba(212, 175, 55, 0.3); color: #fff; padding: 8px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
+        .btn-export:active { background: #d4af37; color: #000; }
+        .report-title { color: #d4af37; font-size: 0.9rem; font-weight: bold; text-align: right; flex: 1; }
+
+        /* MENU BUTTONS */
+        .buttons-container { display: flex; flex-direction: column; gap: 14px; }
+        .menu-btn { display: flex; align-items: center; width: 100%; border-radius: 12px; padding: 14px 18px; cursor: pointer; border: none; transition: transform 0.1s; background: linear-gradient(135deg, rgba(212, 175, 55, 0.05) 0%, rgba(5, 12, 25, 0.6) 100%); border: 1px solid rgba(212, 175, 55, 0.7); backdrop-filter: blur(8px); }
+        .btn-icon { font-size: 1.8rem; margin-right: 15px; width: 35px; text-align: center; }
+        .btn-text h2 { font-size: 1.05rem; font-weight: 700; color: #d4af37; margin-bottom: 2px; }
+        .btn-text p { font-size: 0.75rem; color: #b0c0d0; }
+
+        /* COMPONENTES DE FILTRO */
+        .tabs-container { display: flex; background: rgba(0,0,0,0.4); border-radius: 10px; margin-bottom: 12px; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.2); }
+        .tab-btn { flex: 1; padding: 10px; text-align: center; color: #a0aab5; background: transparent; border: none; border-radius: 8px; font-weight: bold; font-size: 0.8rem; }
+        .tab-btn.active { background: rgba(212, 175, 55, 0.15); color: #d4af37; }
+        .date-filter-box { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; background: rgba(5,12,25,0.4); padding: 10px; border-radius: 10px; }
+        .date-input { background: #000; border: 1px solid #444; color: #d4af37; padding: 6px; border-radius: 6px; font-size: 0.75rem; width: 100%; }
+        .btn-filtrar { background: #d4af37; color: #000; border: none; border-radius: 6px; padding: 8px 12px; font-weight: bold; font-size: 0.75rem; }
+
+        /* CARDS */
+        .glass-card { background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(5, 12, 25, 0.7) 100%); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 12px; color: #e0e5ec; }
+        .kpi-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .kpi-label { font-size: 0.8rem; color: #a0aab5; }
+        .kpi-value { font-size: 1rem; font-weight: bold; color: #d4af37; }
+        .sub-agent-row { border-bottom: 1px dashed rgba(255,255,255,0.05); padding: 8px 0; font-size: 0.75rem; }
+
+        /* PÓDIO E RANKING */
+        .podium-wrapper { display: flex; align-items: flex-end; justify-content: center; gap: 6px; margin: 25px 0; height: 180px; }
+        .podium-col { display: flex; flex-direction: column; align-items: center; flex: 1; width: 33.3%; min-width: 0; }
+        .podium-name { font-size: 0.65rem; font-weight: bold; color: #fff; text-align: center; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2.4em; }
+        .podium-metric { font-size: 0.7rem; color: #d4af37; background: rgba(0,0,0,0.6); padding: 4px; border-radius: 4px; text-align: center; width: 95%; line-height: 1.2; }
+        .podium-step { width: 100%; border-radius: 6px 6px 0 0; display: flex; justify-content: center; align-items: center; font-weight: bold; color: #000; font-size: 1.2rem; }
+        .podium-1 { height: 90px; background: linear-gradient(#fceabb, #f8b500); order: 2; border: 1px solid #fff; }
+        .podium-2 { height: 65px; background: linear-gradient(#e0e5ec, #a0aab5); order: 1; }
+        .podium-3 { height: 45px; background: linear-gradient(#cd7f32, #8b5a2b); order: 3; }
+
+        .ranking-list-item { display: flex; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(212,175,55,0.1); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+        .rank-pos { width: 30px; font-weight: bold; color: #a0aab5; }
+        .rank-info { flex: 1; min-width: 0; }
+        .rank-name { color: #fff; font-weight: bold; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rank-metrics { color: #d4af37; font-size: 0.75rem; font-weight: bold; }
+
+        .loading { text-align: center; color: #d4af37; margin-top: 50px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <main id="tela-menu">
+            <div class="buttons-container">
+                <button class="menu-btn" onclick="abrirTela('operacao')">
+                    <span class="btn-icon">📈</span>
+                    <div class="btn-text"><h2>Operação Comercial</h2><p>Acordos e Inadimplência</p></div>
+                </button>
+                <button class="menu-btn" onclick="abrirTela('tallk')">
+                    <span class="btn-icon">🎧</span>
+                    <div class="btn-text"><h2>Atendimento Tallk</h2><p>Volume e Performance</p></div>
+                </button>
+                <button class="menu-btn" onclick="abrirTela('ranking')">
+                    <span class="btn-icon">🏆</span>
+                    <div class="btn-text"><h2>Ranking</h2><p>Pódio de Resultados</p></div>
+                </button>
+            </div>
+        </main>
+
+        <main id="tela-geral" class="tela-relatorio">
+            <div class="report-header">
+                <button class="btn-voltar" onclick="voltarParaMenu()">‹ Voltar</button>
+                <div class="export-group">
+                    <button class="btn-export" onclick="exportarRelatorio('pdf')">PDF</button>
+                    <button class="btn-export" onclick="exportarRelatorio('excel')">EXCEL</button>
+                </div>
+                <h2 id="titulo-pagina" class="report-title">Relatório</h2>
+            </div>
+            
+            <div id="area-filtros" style="display: none;">
+                <div id="abas-dinamicas" class="tabs-container"></div>
+                <div class="date-filter-box">
+                    <input type="date" id="data-inicio" class="date-input">
+                    <input type="date" id="data-fim" class="date-input">
+                    <button class="btn-filtrar" onclick="atualizarViewAtual()">Filtrar</button>
+                </div>
+            </div>
+
+            <div id="loading" class="loading">Sincronizando Dados... ⏳</div>
+            <div id="conteudo-relatorio"></div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL_OPERACAO = 'https://script.google.com/macros/s/AKfycbym4gyENjA6c98WgGwV7pj0EXZcZOLT9s84HL1S_JGzHJ3R-3izMw1QZJkw6vi17n4WsQ/exec';
+        const API_URL_TALLK = 'https://script.google.com/macros/s/AKfycbwwpzVC4-Es3UJKSxlN0liYxevDd_fugK0SoRX259FvoCe7jBliqrrLiY7mycFH07fx3A/exec';
+        const API_URL_CALC = 'https://script.google.com/macros/s/AKfycbw_paRkhkGz5hCRSyUkgKfDzHICI0lrvwFjALFiuGrs894mQt9D4bRzSMUHOKKti7g/exec';
+
+        let dadosG = { operacao: [], tallk: [], calc: [] };
+        let moduloAtivo = '';
+        let abaAtiva = 'agentes';
+        const formatarMoeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        // --- MÁSCARAS GLOBAIS ---
+        function limparNome(nome) {
+            if (!nome) return "NÃO INFORMADO";
+            let n = String(nome).toUpperCase().replace(/CONDOMÃNIO/g, 'CONDOMÍNIO').replace(/BUTANTAN/g, 'BUTANTÃ');
+            n = n.replace(/[^\w\s&ÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ-]/g, '');
+            n = n.replace(/^(EMPREENDIMENTO:?\s*|CONDOM[ÍI]NIO\s+RESIDENCIAL\s+|CONDOM[ÍI]NIO\s+|MEU\s+PLANO\s*&\s*|PLANO\s*&\s*)/ig, '');
+            return n.trim();
+        }
+
+        function extrairChave(nome) {
+            return nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9&]/g, "");
+        }
+
+        async function abrirTela(modulo) {
+            moduloAtivo = modulo;
+            document.getElementById('tela-menu').classList.add('view-hidden-left');
+            document.getElementById('tela-geral').classList.add('view-active');
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('conteudo-relatorio').innerHTML = '';
+            document.getElementById('area-filtros').style.display = 'block';
+
+            // Datas padrão (Mês Atual)
+            const hoje = new Date();
+            document.getElementById('data-inicio').value = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+            document.getElementById('data-fim').value = hoje.toISOString().split('T')[0];
+
+            // Carregamento de APIs
+            const promessas = [];
+            if (dadosG.operacao.length === 0) promessas.push(fetch(API_URL_OPERACAO).then(r => r.json()).then(d => dadosG.operacao = d));
+            if (dadosG.tallk.length === 0) promessas.push(fetch(API_URL_TALLK).then(r => r.json()).then(d => dadosG.tallk = d));
+            if (dadosG.calc.length === 0) promessas.push(fetch(API_URL_CALC).then(r => r.json()).then(d => dadosG.calc = d));
+            await Promise.all(promessas);
+
+            document.getElementById('loading').style.display = 'none';
+            configurarAbas();
+            atualizarViewAtual();
+        }
+
+        function configurarAbas() {
+            const container = document.getElementById('abas-dinamicas');
+            if(moduloAtivo === 'ranking') {
+                container.innerHTML = `<button class="tab-btn ${abaAtiva==='agentes'?'active':''}" onclick="mudarAba('agentes')">👤 Agentes</button>
+                                       <button class="tab-btn ${abaAtiva==='empreendimentos'?'active':''}" onclick="mudarAba('empreendimentos')">🏢 Empreend.</button>`;
+            } else {
+                container.innerHTML = `<button class="tab-btn active">Visão Geral</button>`;
+            }
+        }
+
+        function mudarAba(novaAba) { abaAtiva = novaAba; configurarAbas(); atualizarViewAtual(); }
+
+        function voltarParaMenu() {
+            document.getElementById('tela-geral').classList.remove('view-active');
+            document.getElementById('tela-menu').classList.remove('view-hidden-left');
+        }
+
+        // --- LÓGICA DE FILTRO E RENDER ---
+        function atualizarViewAtual() {
+            const d1 = document.getElementById('data-inicio').value;
+            const d2 = document.getElementById('data-fim').value;
+            const container = document.getElementById('conteudo-relatorio');
+
+            if (moduloAtivo === 'operacao') renderOperacao(d1, d2);
+            else if (moduloAtivo === 'tallk') renderTallk(d1, d2);
+            else if (moduloAtivo === 'ranking') renderRanking(d1, d2);
+        }
+
+        function renderOperacao(d1, d2) {
+            let filtrados = dadosG.operacao.filter(i => i.data >= d1 && i.data <= d2);
+            let mapCalc = {};
+            dadosG.calc.forEach(c => mapCalc[extrairChave(c.empreendimento)] = c);
+
+            let resumo = {};
+            filtrados.forEach(i => {
+                let key = extrairChave(i.empreendimento);
+                if(!resumo[key]) resumo[key] = { nome: i.empreendimento, acordos: 0, valor: 0, agentes: {} };
+                resumo[key].acordos++;
+                resumo[key].valor += i.valor;
+                if(!resumo[key].agentes[i.agente]) resumo[key].agentes[i.agente] = { acordos: 0, valor: 0 };
+                resumo[key].agentes[i.agente].acordos++;
+                resumo[key].agentes[i.agente].valor += i.valor;
+            });
+
+            let html = '';
+            Object.values(resumo).sort((a,b) => b.valor - a.valor).forEach(emp => {
+                let calc = mapCalc[extrairChave(emp.nome)] || { valorDevedor: 0, qtdClientes: 0 };
+                let percD = calc.valorDevedor > 0 ? ((emp.valor / calc.valorDevedor) * 100).toFixed(1) + '%' : '0.0%';
+                let percC = calc.qtdClientes > 0 ? ((emp.acordos / calc.qtdClientes) * 100).toFixed(1) + '%' : '0.0%';
+
+                html += `<div class="glass-card">
+                    <div class="kpi-row"><span class="kpi-label" style="color:#fff; font-weight:bold; font-size:0.9rem;">🏢 ${limparNome(emp.nome)}</span></div>
+                    <div class="kpi-row"><span class="kpi-label">Inadimplência total:</span><span class="kpi-value" style="color:#ff6b6b">${formatarMoeda.format(calc.valorDevedor)}</span></div>
+                    <div class="kpi-row" style="margin-bottom:10px;"><span class="kpi-label">Total de Clientes Inad.:</span><span class="kpi-value" style="color:#a0aab5">${calc.qtdClientes}</span></div>
+                    
+                    <div style="border-top:1px dashed rgba(212,175,55,0.3); padding-top:10px;">
+                        <div class="kpi-row"><span class="kpi-label">Acordos Fechados:</span><span class="kpi-value">${emp.acordos}</span></div>
+                        <div class="kpi-row"><span class="kpi-label">Valor Total em Acordo:</span><span class="kpi-value">${formatarMoeda.format(emp.valor)}</span></div>
+                        <div class="kpi-row"><span class="kpi-label">Clientes com Acordo:</span><span class="kpi-value" style="color:#4CAF50">${percC}</span></div>
+                        <div class="kpi-row"><span class="kpi-label">Débito Negociado:</span><span class="kpi-value" style="color:#4CAF50">${percD}</span></div>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('conteudo-relatorio').innerHTML = html || "<p class='loading'>Sem dados no período.</p>";
+        }
+
+        function renderTallk(d1, d2) {
+            let filtrados = dadosG.tallk.filter(i => i.data >= d1 && i.data <= d2);
+            let resumo = {};
+            filtrados.forEach(i => {
+                if(!resumo[i.agente]) resumo[i.agente] = { int: 0, seg: 0, alo: 0, cpc: 0 };
+                resumo[i.agente].int += i.interacoes;
+                resumo[i.agente].seg += i.duracaoSegundos;
+                resumo[i.agente].alo += i.alo;
+                resumo[i.agente].cpc += i.cpc;
+            });
+
+            let html = '';
+            Object.entries(resumo).sort((a,b) => b[1].int - a[1].int).forEach(([nome, d]) => {
+                let tma = d.int > 0 ? Math.floor(d.seg / d.int) : 0;
+                html += `<div class="glass-card">
+                    <div class="kpi-row"><span class="kpi-label" style="color:#fff; font-weight:bold;">👤 ${nome}</span></div>
+                    <div class="kpi-row"><span class="kpi-label">Total Interações:</span><span class="kpi-value">${d.int}</span></div>
+                    <div class="kpi-row"><span class="kpi-label">TMA:</span><span class="kpi-value">${Math.floor(tma/60)}:${(tma%60).toString().padStart(2,'0')}</span></div>
+                    <div class="kpi-row"><span class="kpi-label">Alô / CPC:</span><span class="kpi-value" style="font-size:0.8rem;">${d.alo} / ${d.cpc}</span></div>
+                </div>`;
+            });
+            document.getElementById('conteudo-relatorio').innerHTML = html;
+        }
+
+        function renderRanking(d1, d2) {
+            let arrayRank = [];
+            if(abaAtiva === 'agentes') {
+                let res = {};
+                dadosG.operacao.filter(i => i.data >= d1 && i.data <= d2).forEach(i => {
+                    if(!res[i.agente]) res[i.agente] = { val: 0, ac: 0 };
+                    res[i.agente].val += i.valor; res[i.agente].ac++;
+                });
+                arrayRank = Object.entries(res).map(([n, d]) => ({ nome: n, val: d.val, m: `${formatarMoeda.format(d.val)}<br><span style='font-weight:normal; font-size:0.6rem;'>(${d.ac} acordos)</span>` }));
+            } else {
+                let res = {};
+                dadosG.operacao.filter(i => i.data >= d1 && i.data <= d2).forEach(i => {
+                    let k = extrairChave(i.empreendimento);
+                    if(!res[k]) res[k] = { nome: i.empreendimento, val: 0, ac: 0 };
+                    res[k].val += i.valor; res[k].ac++;
+                });
+                arrayRank = Object.values(res).map(d => ({ nome: limparNome(d.nome), val: d.val, m: `${formatarMoeda.format(d.val)}<br><span style='font-weight:normal; font-size:0.6rem;'>(${d.ac} acordos)</span>` }));
+            }
+
+            arrayRank.sort((a,b) => b.val - a.val);
+            
+            // Lógica de Rank Denso
+            if(arrayRank.length > 0) {
+                let curR = 1; arrayRank[0].r = 1;
+                for(let i=1; i<arrayRank.length; i++) {
+                    if(arrayRank[i].val < arrayRank[i-1].val) curR++;
+                    arrayRank[i].r = curR;
+                }
+            }
+
+            let top3 = arrayRank.filter(i => i.r <= 3);
+            let resto = arrayRank.filter(i => i.r > 3);
+
+            let htmlPodio = `<div class="podium-wrapper">`;
+            let r2 = top3.filter(i => i.r === 2);
+            let r1 = top3.filter(i => i.r === 1);
+            let r3 = top3.filter(i => i.r === 3);
+
+            const getNames = (arr) => arr.length > 2 ? `${arr.length} Empatados` : arr.map(x => x.nome).join('<br>');
+            const getMetric = (arr) => arr.length > 0 ? arr[0].m : '';
+
+            htmlPodio += `<div class="podium-col podium-2"><div class="podium-name">${getNames(r2)}</div><div class="podium-metric">${getMetric(r2)}</div><div class="podium-step podium-2">2</div></div>`;
+            htmlPodio += `<div class="podium-col podium-1"><div class="podium-name">${getNames(r1)}</div><div class="podium-metric">${getMetric(r1)}</div><div class="podium-step podium-1">1</div></div>`;
+            htmlPodio += `<div class="podium-col podium-3"><div class="podium-name">${getNames(r3)}</div><div class="podium-metric">${getMetric(r3)}</div><div class="podium-step podium-3">3</div></div>`;
+            htmlPodio += `</div>`;
+
+            let htmlLista = '';
+            resto.forEach(i => {
+                htmlLista += `<div class="ranking-list-item"><div class="rank-pos">${i.r}º</div><div class="rank-info"><div class="rank-name">${i.nome}</div><div class="rank-metrics">${i.m.replace('<br>', ' ')}</div></div></div>`;
+            });
+            document.getElementById('conteudo-relatorio').innerHTML = htmlPodio + htmlLista;
+        }
+
+        // --- MOTOR DE EXPORTAÇÃO ---
+        function exportarRelatorio(tipo) {
+            const d1 = document.getElementById('data-inicio').value;
+            const d2 = document.getElementById('data-fim').value;
+
+            if (tipo === 'excel') {
+                let base = [];
+                if (moduloAtivo === 'operacao' || moduloAtivo === 'ranking') {
+                    base = dadosG.operacao.filter(i => i.data >= d1 && i.data <= d2).map(i => ({
+                        Data: i.data,
+                        Agente: i.agente,
+                        Empreendimento: i.empreendimento,
+                        Valor_Acordo: i.valor,
+                        Contrato: i.contrato || ''
+                    }));
+                } else {
+                    base = dadosG.tallk.filter(i => i.data >= d1 && i.data <= d2);
+                }
+
+                const ws = XLSX.utils.json_to_sheet(base);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "DADOS_JBLAR");
+                XLSX.writeFile(wb, `JBLAR_${moduloAtivo}_${d1}_a_${d2}.xlsx`);
+
+            } else {
+                const element = document.getElementById('tela-geral');
+                const opt = { margin: 5, filename: `JBLAR_${moduloAtivo}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, backgroundColor: '#030812' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+                document.querySelector('.export-group').style.display = 'none';
+                document.querySelector('.btn-voltar').style.display = 'none';
+                html2pdf().set(opt).from(element).save().then(() => {
+                    document.querySelector('.export-group').style.display = 'flex';
+                    document.querySelector('.btn-voltar').style.display = 'block';
+                });
+            }
+        }
+    </script>
+</body>
+</html>
